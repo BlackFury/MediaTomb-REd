@@ -47,11 +47,11 @@ using namespace zmm;
 #define YOUTUBE_URL_PARAMS_REGEXP   "var swfHTML.*\\;"
 #define YOUTUBE_URL_LOCATION_REGEXP "\nLocation: (http://[^\n]+)\n"
 #define YOUTUBE_URL_WATCH           "http://www.youtube.com/watch?v="
-#define YOUTUBE_URL_GET             "http://www.youtube.com/get_video?" 
 #define YOUTUBE_URL_PARAM_VIDEO_ID  "video_id"
-#define YOUTUBE_URL_PARAM_T_REGEXP  ".*&t=([^&]+)&"
-#define YOUTUBE_URL_PARAM_T         "t"
+#define YOUTUBE_URL_PARAM_FMT_REGEXP  ".*&fmt_url_map=([^&]+)&"
+#define YOUTUBE_URL_PARAM_FMT         "fmt_url_map"
 #define YOUTUBE_IS_HD_AVAILABLE_REGEXP  "IS_HD_AVAILABLE[^:]*: *([^,]*)"
+
 YouTubeVideoURL::YouTubeVideoURL()
 {
     curl_handle = curl_easy_init();
@@ -62,8 +62,9 @@ YouTubeVideoURL::YouTubeVideoURL()
     reVideoURLParams->compile(_(YOUTUBE_URL_PARAMS_REGEXP));
     redirectLocation = Ref<RExp>(new RExp());
     redirectLocation->compile(_(YOUTUBE_URL_LOCATION_REGEXP));
-    param_t = Ref<RExp>(new RExp());
-    param_t->compile(_(YOUTUBE_URL_PARAM_T_REGEXP));
+
+    FMT = Ref<RExp>(new RExp());
+    FMT->compile(_(YOUTUBE_URL_PARAM_FMT_REGEXP));
 
     HD = Ref<RExp>(new RExp());
     HD->compile(_(YOUTUBE_IS_HD_AVAILABLE_REGEXP));
@@ -82,7 +83,12 @@ YouTubeVideoURL::~YouTubeVideoURL()
 
 String YouTubeVideoURL::getVideoURL(String video_id, bool mp4, bool hd)
 {
-    long retcode; 
+    Ref<StringBuffer> buffer;
+    Ref<Matcher> matcher;
+
+    long retcode;
+    String params;
+    String urls;
     String flv_location;
     String watch;
 #ifdef TOMBDEBUG
@@ -91,112 +97,50 @@ String YouTubeVideoURL::getVideoURL(String video_id, bool mp4, bool hd)
     bool verbose = false;
 #endif
 
-   /*
-// ###########################################################
-
-    String swfargs = read_text_file("/home/jin/Work/UPnP/MediaTomb/YouTube/swf_args_new2.txt");
-    
-    Ref<Matcher> m2 = param_t->matcher(swfargs);
-    
-    if (m2->next())
-    {
-        String hmm = m2->group(1);
-        if (string_ok(hmm))
-            log_debug("############### t: %s\n", hmm.c_str());
-        else 
-            log_debug("no match?\n");
-    }
-    throw _Exception(_("OVER"));
-*/
-
-// ###########################################################
-
-
     if (!string_ok(video_id))
         throw _Exception(_("No video ID specified!"));
 
     watch = _(YOUTUBE_URL_WATCH) + video_id;
-
     Ref<URL> url(new URL(YOUTUBE_PAGESIZE));
 
-    Ref<StringBuffer> buffer = url->download(watch, &retcode, curl_handle,
-                                             false, verbose, true);
-    if (retcode != 200)
+    buffer = url->download(watch, &retcode, curl_handle, false, verbose, false);
+    if(retcode != 200)
+        throw _Exception(_("Failed to get URL for video with id ") + watch + _("HTTP response code: ") + String::from(retcode));
+
+    log_debug("------> REQUEST URL1: %s\n", watch.c_str());
+    log_debug("------> GOT BUFFER1: %s\n", buffer->toString().c_str());
+
+    matcher = FMT->matcher(buffer->toString());
+    if(matcher->next())
     {
-        throw _Exception(_("Failed to get URL for video with id ")
-                         + watch + _("HTTP response code: ") + 
-                         String::from(retcode));
+    urls = url_unescape(trim_string(matcher->group(1)).c_str());
+	log_debug("------> GOT BUFFER2: %s\n", params.c_str());
+	return whichURL(urls, mp4, hd);
     }
 
-    log_debug("------> GOT BUFFER %s\n", buffer->toString().c_str());
+    throw _Exception(_("Could not retrieve YouTube video URL"));
+}
 
-    Ref<Matcher> matcher =  reVideoURLParams->matcher(buffer->toString());
-    String params;
-    if (matcher->next())
+String YouTubeVideoURL::whichURL(String tmpStr, bool mp4, bool hd)
+{
+    while(tmpStr.find(",") > 0)
     {
-//        params = trim_string(matcher->group(1));
-        params = trim_string( matcher->group( 0 ) );
-      /*
-        int brace = params.index( '{' );
-        if ( brace > 0 )
-            params = params.substring( brace );
-        brace = params.index( '}' );
-        if ( brace > 0 )
-            params = params.substring( 0, brace + 1 );
-            */
-        Ref<Matcher> m2 = param_t->matcher(params);
-        if (m2->next())
-        {
-            String hmm = m2->group(1);
-            if (string_ok(hmm))
-                params = hmm; 
-            else 
-            {
-                throw _Exception(_("Could not retrieve \"t\" parameter."));
-            }
-        }
-    }
-    else
-    {
-        throw _Exception(_("Failed to get URL for video with id (step 1)") + video_id);
-    }
+	String fmturl = tmpStr.substring(0, tmpStr.find(","));
+	tmpStr = tmpStr.substring(tmpStr.find(",") + 1);
+	if(fmturl.find("|") <= 0)
+		continue;
 
-    params = _(YOUTUBE_URL_GET) + YOUTUBE_URL_PARAM_VIDEO_ID + '=' + 
-             video_id + '&' + YOUTUBE_URL_PARAM_T + '=' + params;
+	int fmt = atoi(fmturl.substring(0, fmturl.find("|")).c_str());
+	fmturl = fmturl.substring(fmturl.find("|") + 1);
 
-    if (mp4)
-    {
-        String format = _("&fmt=18");
-        
-        if (hd)
-        {
-            matcher = HD->matcher(buffer->toString());
-            if (matcher->next())
-            {
-                if (trim_string(matcher->group(1)) == "true")
-                    format = _("&fmt=22");
-            }
-        }
-                    
-        params = params + format;
-    }
+	log_debug("------> GOT BUFFER3: %d -- %s\n", fmt, fmturl.c_str());
 
-    buffer = url->download(params, &retcode, curl_handle, true, verbose, true);
-
-    matcher = redirectLocation->matcher(buffer->toString());
-    if (matcher->next())
-    {
-        if (string_ok(trim_string(matcher->group(1))))
-            return trim_string(matcher->group(1));
-        else
-            throw _Exception(_("Failed to get URL for video with id (step 2)")+ 
-                             video_id);
-    }
-
-    if (retcode != 303)
-    {
-        throw _Exception(_("Unexpected reply from YouTube: ") + 
-                         String::from(retcode));
+	if(hd && fmt == 22)
+	    return fmturl;
+	if((hd || mp4) && fmt == 18)
+	    return fmturl;
+	if(fmt == 5)
+	    return fmturl;
     }
 
     throw _Exception(_("Could not retrieve YouTube video URL"));
