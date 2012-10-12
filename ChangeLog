@@ -1,4 +1,8 @@
-MediaTomb - UPnP AV Mediaserver.
+MediaTomb (Must Not Die Edition) - UPnP AV Mediaserver.
+v0.12.2 12.10.2012
+	* fixed Youtube service support (got broken after they updated their
+          website ans video url)
+
 v0.12.1 08.04.2010
         * fixed YouTube service support (got broken after they updated their
           website)
