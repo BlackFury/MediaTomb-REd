@@ -56,7 +56,7 @@ public:
     /// \param hd if mp4 format is selected, get video in HD resolution if 
     /// available
     /// \return the url to the .flv or .mp4 file 
-    zmm::String getVideoURL(zmm::String video_id, bool mp4, bool hd);
+    zmm::String whichURL(zmm::String tmpStr, bool mp4, bool hd);
 
 protected:
     // the handle *must never be used from multiple threads*
@@ -64,7 +64,8 @@ protected:
     pthread_t pid;
     zmm::Ref<RExp> reVideoURLParams;
     zmm::Ref<RExp> redirectLocation;
-    zmm::Ref<RExp> param_t;
+    zmm::Ref<RExp> param_fmt;
+    zmm::Ref<RExp> FMT;
     zmm::Ref<RExp> HD;
 };
 
