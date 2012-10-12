@@ -1,11 +1,14 @@
-MediaTomb - UPnP MediaServer
+MediaTomb (Must Not Die Edition) - UPnP MediaServer
 
-   This documentation is valid for MediaTomb version 0.12.1.
+   This documentation is valid for MediaTomb version 0.12.2.
 
    Copyright (c) 2005 Gena Batsyan, Sergey Bostandzhyan
 
    Copyright (c) 2006-2010 Gena Batsyan, Sergey Bostandzhyan,
    Leonhard Wimmer
+
+   Copyright (c) 2012 Gena Batsyan, Sergey Bostandzhyan,
+   Leonhard Wimmer, Cosquer Geoffrey
 
    THIS SOFTWARE COMES WITH ABSOLUTELY NO WARRANTY! USE AT YOUR
    OWN RISK!
